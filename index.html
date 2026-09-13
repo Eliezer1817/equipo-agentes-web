@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Equipo</title>
+  <style>
+    :root { --bg:#000; --text:#f4f4f5; --muted:#a1a1aa; --line:#1c1c1e; --chip:#27272a; }
+    * { box-sizing: border-box; }
+    html, body { margin:0; height:100%; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    #app { height:100%; max-width:430px; margin:0 auto; background:#070707; position:relative; overflow:hidden; }
+    .screen { display:none; height:100%; flex-direction:column; }
+    .screen.active { display:flex; }
+    .top { display:flex; align-items:center; justify-content:space-between; padding:18px 16px 8px; }
+    .avatar-me { width:42px; height:42px; border-radius:50%; background:radial-gradient(circle at 30% 30%, #52525b, #18181b); }
+    .top-actions { display:flex; gap:10px; }
+    .top-actions button, .back { width:40px; height:40px; border:0; border-radius:50%; background:#1a1a1a; color:var(--text); font-size:18px; }
+    .banner { margin:0 16px 8px; padding:8px 10px; border-radius:10px; background:#1a1a1a; color:var(--muted); font-size:12px; }
+    .search { margin:0 16px 8px; padding:10px 12px; border-radius:12px; border:0; background:#141414; color:var(--text); width:calc(100% - 32px); }
+    .hidden { display:none !important; }
+    .list { overflow:auto; padding:6px 0 24px; }
+    .row { display:grid; grid-template-columns:52px 1fr auto; gap:12px; align-items:center; padding:12px 16px; width:100%; border:0; background:transparent; color:inherit; text-align:left; }
+    .dot { width:44px; height:44px; border-radius:50%; display:grid; place-items:center; font-weight:700; color:#111; }
+    .name { font-size:16px; font-weight:600; }
+    .badge { display:inline-block; margin-left:6px; font-size:11px; color:var(--muted); background:var(--chip); border-radius:999px; padding:2px 7px; }
+    .preview { color:var(--muted); font-size:13px; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .time { color:var(--muted); font-size:12px; }
+    .chat-top { justify-content:flex-start; gap:10px; border-bottom:1px solid var(--line); }
+    .chat-who { display:flex; align-items:center; gap:10px; }
+    .meta { color:var(--muted); font-size:12px; }
+    .thread { flex:1; overflow:auto; padding:16px; display:flex; flex-direction:column; gap:10px; }
+    .bubble { max-width:82%; padding:10px 12px; border-radius:16px; line-height:1.35; white-space:pre-wrap; }
+    .bubble.user { align-self:flex-end; background:#2563eb; }
+    .bubble.assistant { align-self:flex-start; background:#1c1c1e; }
+    .composer { display:flex; gap:8px; padding:10px 12px calc(12px + env(safe-area-inset-bottom)); border-top:1px solid var(--line); }
+    .composer input { flex:1; border:0; border-radius:18px; padding:12px 14px; background:#1c1c1e; color:var(--text); }
+    .composer button, .sheet button { border:0; border-radius:14px; padding:10px 14px; background:#f4f4f5; color:#111; font-weight:600; }
+    .modal { position:absolute; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:flex-end; }
+    .sheet { width:100%; background:#111; border-radius:20px 20px 0 0; padding:18px 16px 24px; display:flex; flex-direction:column; gap:10px; }
+    .sheet h2 { margin:0 0 6px; font-size:18px; }
+    .sheet label { display:flex; flex-direction:column; gap:6px; font-size:13px; color:var(--muted); }
+    .sheet input, .sheet textarea { border:0; border-radius:12px; padding:10px 12px; background:#1c1c1e; color:var(--text); font:inherit; }
+    .sheet-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:8px; }
+    .ghost { background:#27272a !important; color:var(--text) !important; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <section id="inbox" class="screen active">
+      <header class="top">
+        <div class="avatar-me"></div>
+        <div class="top-actions">
+          <button type="button" id="btn-search">🔍</button>
+          <button type="button" id="btn-add">+</button>
+        </div>
+      </header>
+      <div class="banner">Vista previa. Los chats son locales; todavía no hay servidor ni API.</div>
+      <input id="search" class="search hidden" placeholder="Buscar especialista" />
+      <div id="list" class="list"></div>
+    </section>
+    <section id="chat" class="screen">
+      <header class="top chat-top">
+        <button type="button" id="btn-back" class="back">←</button>
+        <div class="chat-who">
+          <div id="chat-dot" class="dot"></div>
+          <div>
+            <div id="chat-name" class="name"></div>
+            <div id="chat-title" class="meta"></div>
+          </div>
+        </div>
+      </header>
+      <div id="thread" class="thread"></div>
+      <form id="composer" class="composer">
+        <input id="input" autocomplete="off" placeholder="Mensaje" />
+        <button type="submit">Enviar</button>
+      </form>
+    </section>
+  </div>
+  <div id="modal" class="modal hidden">
+    <form id="create" class="sheet">
+      <h2>Nuevo especialista</h2>
+      <label>Nombre<input name="name" required maxlength="40" placeholder="Ej. Investigador" /></label>
+      <label>Cargo<input name="title" maxlength="40" placeholder="Ej. Especialista en research" /></label>
+      <label>Cómo debe trabajar<textarea name="instructions" rows="5" placeholder="Rol, tono, límites."></textarea></label>
+      <div class="sheet-actions">
+        <button type="button" id="btn-cancel" class="ghost">Cancelar</button>
+        <button type="submit">Crear</button>
+      </div>
+    </form>
+  </div>
+  <script>
+    const COLORS = ["#f97316","#f59e0b","#38bdf8","#34d399","#a78bfa","#f472b6"];
+    const KEY = "equipo-agentes-preview";
+    const listEl = document.getElementById("list");
+    const searchEl = document.getElementById("search");
+    const modal = document.getElementById("modal");
+    const thread = document.getElementById("thread");
+    const input = document.getElementById("input");
+    let current = null;
+
+    function load() {
+      const raw = localStorage.getItem(KEY);
+      if (raw) return JSON.parse(raw);
+      return [{
+        id: "asistente",
+        name: "Asistente",
+        title: "General",
+        color: "#f97316",
+        instructions: "Ayudá de forma directa, en español.",
+        messages: [],
+        last_message: "Sin mensajes",
+        last_at: ""
+      }];
+    }
+    let specialists = load();
+    const save = () => localStorage.setItem(KEY, JSON.stringify(specialists));
+    const show = (id) => document.querySelectorAll(".screen").forEach((el) => el.classList.toggle("active", el.id === id));
+    const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+    const timeLabel = (iso) => iso ? new Date(iso).toLocaleTimeString("es-PY", { hour:"numeric", minute:"2-digit" }) : "";
+
+    function renderList(filter = "") {
+      const q = filter.trim().toLowerCase();
+      const rows = specialists.filter((s) => !q || `${s.name} ${s.title}`.toLowerCase().includes(q));
+      listEl.innerHTML = rows.map((s) => `
+        <button class="row" data-id="${s.id}">
+          <div class="dot" style="background:${s.color}">${(s.name||"?").slice(0,1).toUpperCase()}</div>
+          <div>
+            <div class="name">${esc(s.name)} <span class="badge">${esc(s.title||"")}</span></div>
+            <div class="preview">${esc(s.last_message || "Sin mensajes")}</div>
+          </div>
+          <div class="time">${timeLabel(s.last_at)}</div>
+        </button>`).join("");
+    }
+    function renderThread(messages) {
+      thread.innerHTML = (messages || []).map((m) => `<div class="bubble ${m.role}">${esc(m.content)}</div>`).join("");
+      thread.scrollTop = thread.scrollHeight;
+    }
+    function openChat(id) {
+      current = specialists.find((s) => s.id === id);
+      if (!current) return;
+      document.getElementById("chat-name").textContent = current.name;
+      document.getElementById("chat-title").textContent = current.title || "";
+      document.getElementById("chat-dot").style.background = current.color;
+      document.getElementById("chat-dot").textContent = current.name.slice(0,1).toUpperCase();
+      renderThread(current.messages);
+      show("chat");
+      input.focus();
+    }
+
+    document.getElementById("btn-search").onclick = () => { searchEl.classList.toggle("hidden"); if (!searchEl.classList.contains("hidden")) searchEl.focus(); };
+    searchEl.oninput = () => renderList(searchEl.value);
+    document.getElementById("btn-add").onclick = () => modal.classList.remove("hidden");
+    document.getElementById("btn-cancel").onclick = () => modal.classList.add("hidden");
+    document.getElementById("btn-back").onclick = () => { show("inbox"); renderList(searchEl.value); };
+    listEl.onclick = (e) => { const row = e.target.closest("[data-id]"); if (row) openChat(row.dataset.id); };
+    document.getElementById("create").onsubmit = (e) => {
+      e.preventDefault();
+      const data = Object.fromEntries(new FormData(e.target).entries());
+      const item = {
+        id: "s-" + Date.now(),
+        name: data.name.trim(),
+        title: (data.title || "Especialista").trim(),
+        color: COLORS[specialists.length % COLORS.length],
+        instructions: data.instructions || "Sos un especialista útil y directo.",
+        messages: [],
+        last_message: "Sin mensajes",
+        last_at: ""
+      };
+      specialists.unshift(item);
+      save();
+      modal.classList.add("hidden");
+      e.target.reset();
+      renderList();
+      openChat(item.id);
+    };
+    document.getElementById("composer").onsubmit = (e) => {
+      e.preventDefault();
+      if (!current) return;
+      const message = input.value.trim();
+      if (!message) return;
+      input.value = "";
+      const now = new Date().toISOString();
+      current.messages.push({ role:"user", content:message, at:now });
+      current.messages.push({
+        role:"assistant",
+        content: `Vista previa de ${current.name} (${current.title}).\n\nRecibí: “${message}”.\n\nCuando el servidor esté online voy a responder de verdad con el modelo. Instrucciones guardadas: ${current.instructions}`,
+        at: new Date().toISOString()
+      });
+      current.last_message = message;
+      current.last_at = now;
+      save();
+      renderThread(current.messages);
+    };
+    renderList();
+  </script>
+</body>
+</html>
